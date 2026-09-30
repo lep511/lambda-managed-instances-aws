@@ -1,0 +1,29 @@
+# Optimizacion de microarquitectura para Graviton.
+#
+# Por defecto, rustc compila aarch64 contra el baseline armv8-a, donde la unica
+# feature activa es `neon`. Eso deja fuera cosas que toda instancia Graviton
+# moderna soporta, sobre todo `lse` (Large System Extensions): sin ella cada
+# operacion atomica se compila como un bucle load-linked/store-conditional en
+# vez de una sola instruccion. Con run_concurrent y 8 tasks de Tokio por vCPU
+# compartiendo los refcounts internos de Polars, ese es un camino caliente.
+#
+# `neoverse-n1` es Graviton2 (armv8.2-a): habilita lse, crc, dotprod, fp16,
+# rcpc, rdm y compania. Es el minimo comun denominador seguro — cualquier
+# instancia Graviton2, 3 o 4 que Lambda elija ejecuta este binario.
+#
+# NO subir a neoverse-v2 (Graviton4) sin antes restringir InstanceRequirements
+# en el capacity provider a esa generacion. El provider del workshop solo pide
+# `Architectures=[arm64]` y Lambda mezcla familias segun disponibilidad; si el
+# binario usa instrucciones que la instancia asignada no tiene, muere con SIGILL
+# de forma intermitente y solo bajo scaling.
+#
+# Tampoco usar target-cpu=native: compilaria contra el CPU de la maquina de
+# build, que no es necesariamente el de destino.
+
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=neoverse-n1"]
+
+# cargo-lambda usa el target gnu por defecto, pero deja el musl configurado por
+# si se compila con --target aarch64-unknown-linux-musl.
+[target.aarch64-unknown-linux-musl]
+rustflags = ["-C", "target-cpu=neoverse-n1"]

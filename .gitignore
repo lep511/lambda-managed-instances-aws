@@ -1,0 +1,34 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Rust
+target/
+**/target/
+**/*.rs.bk
+# Uncomment for libraries only (keep Cargo.lock for binaries/Lambda functions)
+# Cargo.lock
+
+# AWS SAM / CDK / Serverless build output
+.aws-sam/
+cdk.out/
+.serverless/
+samconfig.toml
+
+# Lambda packaging
+*.zip
+bootstrap
+build/
+dist/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log

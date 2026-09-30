@@ -1,0 +1,31 @@
+[package]
+name = "lmi-workshop-function"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+lambda_runtime = { version = "1", features = ["concurrency-tokio"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+base64 = "0.22"
+rand = "0.8"
+polars = { version = "0.55", features = [
+    "lazy",
+    "csv",
+    "parquet",
+    "strings",
+    "performant",
+    "regex",
+    "timezones",
+    "temporal",
+] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true
