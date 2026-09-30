@@ -6,23 +6,17 @@ Lambda Managed Instances ejecuta tus funciones en instancias EC2 gestionadas por
 
 ## Arquitectura
 
-```
-                        ┌──────────────────────────────────┐
-                        │       Capacity Provider          │
-                        │  (VPC, subnets, security group)  │
-                        └──────────┬───────────────────────┘
-                                   │
-                 ┌─────────────────┼─────────────────┐
-                 │                 │                 │
-          ┌──────┴──────┐  ┌──────┴──────┐  ┌──────┴──────┐
-          │  Graviton    │  │  Graviton    │  │  Graviton    │
-          │  us-east-1a  │  │  us-east-1b  │  │  us-east-1c  │
-          │  (arm64)     │  │  (arm64)     │  │  (arm64)     │
-          └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
-                 │                 │                 │
-          8 async tasks     8 async tasks     8 async tasks
-           por vCPU          por vCPU          por vCPU
-            (Tokio)           (Tokio)           (Tokio)
+```mermaid
+flowchart TD
+    CP["<b>Capacity Provider</b><br/>VPC · Subnets · Security Group"]
+
+    CP --> A["<b>Graviton (arm64)</b><br/>us-east-1a"]
+    CP --> B["<b>Graviton (arm64)</b><br/>us-east-1b"]
+    CP --> C["<b>Graviton (arm64)</b><br/>us-east-1c"]
+
+    A --> A1["8 async tasks per vCPU<br/>(Tokio)"]
+    B --> B1["8 async tasks per vCPU<br/>(Tokio)"]
+    C --> C1["8 async tasks per vCPU<br/>(Tokio)"]
 ```
 
 ## Que hace la funcion
