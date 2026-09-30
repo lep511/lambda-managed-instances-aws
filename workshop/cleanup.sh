@@ -127,13 +127,14 @@ else
 fi
 
 # =============================================
-#  6. Limpiar .env
+#  6. Limpiar variables de deploy del .env
 # =============================================
 echo ""
 if [[ -f "$ENV_FILE" ]]; then
-    info "Eliminando $ENV_FILE..."
-    rm -f "$ENV_FILE"
-    ok ".env eliminado"
+    info "Limpiando variables de deploy de $ENV_FILE..."
+    sed -i '/^LMI_VERSION=/d' "$ENV_FILE"
+    sed -i '/^CP_ARN=/d' "$ENV_FILE"
+    ok ".env conservado (se eliminaron LMI_VERSION y CP_ARN)"
 fi
 
 echo ""

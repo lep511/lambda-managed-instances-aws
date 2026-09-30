@@ -132,10 +132,15 @@ No necesitas crear el archivo a mano: cada script lo lee con `source` y `setup-c
 | `CP_ARN` | `setup-capacity-provider.sh` | ARN del capacity provider, añadido cuando pasa a `Active` |
 | `LMI_VERSION` | `deploy-rust-function.sh` | Version publicada de la funcion; default de `invoke.sh` e `invoke-parallel.sh` |
 | `TENANT_B_VERSION` | `setup-tenant-b.sh` | Version publicada de la funcion de Tenant B; la usa `demo-isolation.sh` |
+| `MEMORY_SIZE` | manual (opcional) | Memoria de la funcion en MB. Default: `2048`. Con ratio 2:1, cada 2048 MB = 1 vCPU |
+| `MEM_VCPU_RATIO` | manual (opcional) | Ratio memoria-a-vCPU en GB: `2.0` (compute), `4.0` (balanced), `8.0` (memory). Default: `2.0` |
+| `ARCHITECTURE` | manual (opcional) | Arquitectura: `arm64` (Graviton) o `x86_64`. Default: `arm64` |
+| `TIMEOUT` | manual (opcional) | Timeout en segundos. Default: `120`. LMI soporta hasta 5400s async |
+| `MAX_CONCURRENCY` | manual (opcional) | `PerExecutionEnvironmentMaxConcurrency`: 2, 4, 8 o 16 tasks/vCPU. Default: `8` |
 
 `REGION` y `ACCOUNT_ID` aparecen en los prerrequisitos de la guia de multi-tenancy, pero ningun script los lee ni los escribe: solo hacen falta para los comandos que copias a mano. Puedes definirlos en tu shell o en el `.env`.
 
-> `setup-capacity-provider.sh` **reescribe** el `.env` desde cero al guardar las cinco primeras variables, asi que ejecutarlo de nuevo borra `LMI_VERSION` y `TENANT_B_VERSION`. `cleanup.sh` elimina el archivo completo. Como contiene identificadores de tu cuenta, no lo subas al repositorio.
+> `setup-capacity-provider.sh` actualiza las cinco variables de infraestructura sin borrar las demas. `cleanup.sh` elimina solo `LMI_VERSION` y `CP_ARN` (las que quedan invalidas), conservando el resto. Como el `.env` contiene identificadores de tu cuenta, no lo subas al repositorio.
 
 ### 3. Compilar y desplegar la funcion Rust
 
@@ -269,17 +274,56 @@ El resumen final incluye tiempo total de la oleada, cuenta de exitosas/fallidas 
 
 ## Escalar con mas vCPUs
 
-LMI permite escalar la funcion aumentando memoria (con ratio 2:1, cada 2 GB = 1 vCPU). Polars paraleliza automaticamente:
+LMI permite escalar la funcion aumentando memoria (con ratio 2:1, cada 2 GB = 1 vCPU). Polars paraleliza automaticamente. Configura `MEMORY_SIZE` en `workshop/.env` y re-despliega:
 
 ```bash
-# 2 vCPUs
-aws lambda update-function-configuration --function-name lmi-workshop-rust-function --memory-size 4096
-
-# 4 vCPUs
-aws lambda update-function-configuration --function-name lmi-workshop-rust-function --memory-size 8192
+# Ejemplo: 4 vCPUs (con ratio 2:1)
+# En workshop/.env:
+#   MEMORY_SIZE=8192
+bash workshop/deploy-rust-function.sh
 ```
 
 A diferencia de Lambda estandar (max 10 GB), LMI no tiene limite fijo de memoria — depende del tipo de instancia EC2 que Lambda seleccione.
+
+## Configurar la funcion via `.env`
+
+`deploy-rust-function.sh` lee estas variables opcionales de `workshop/.env`. Si no se definen, usa los defaults indicados. Son los mismos parametros que aparecen en la [calculadora de costos](pricing-calculator/).
+
+```bash
+# Ejemplo: funcion con 4 vCPUs, ratio balanced, concurrencia baja para Polars
+MEMORY_SIZE=8192
+MEM_VCPU_RATIO=2.0
+ARCHITECTURE=arm64
+TIMEOUT=120
+MAX_CONCURRENCY=4
+```
+
+Despues de cambiar valores, re-despliega:
+
+```bash
+bash workshop/deploy-rust-function.sh
+```
+
+### Parametros
+
+| Variable | Valor | Default | Descripcion |
+|---|---|---|---|
+| `MEMORY_SIZE` | MB (ej. `2048`, `4096`, `8192`) | `2048` | Memoria de la funcion. Con ratio 2:1, cada 2048 MB = 1 vCPU |
+| `MEM_VCPU_RATIO` | `2.0`, `4.0`, `8.0` | `2.0` | GB de memoria por vCPU. 2.0 = compute, 4.0 = balanced, 8.0 = memory |
+| `ARCHITECTURE` | `arm64`, `x86_64` | `arm64` | arm64 (Graviton) es ~20% mas barato que x86_64 |
+| `TIMEOUT` | segundos (max 5400) | `120` | LMI soporta hasta 90 min para invocaciones async |
+| `MAX_CONCURRENCY` | `2`, `4`, `8`, `16` | `8` | Tokio tasks por vCPU (`PerExecutionEnvironmentMaxConcurrency`) |
+
+### Concurrencia por vCPU
+
+| Valor | Uso recomendado | CPU por task |
+|---|---|---|
+| `2` | CPU-intensive: procesamiento de datos con Polars, compresion, crypto | ~50% |
+| `4` | Balanced: APIs con logica de negocio + I/O moderado | ~25% |
+| `8` | **Default Rust LMI.** Workloads con I/O moderado | ~12.5% |
+| `16` | IO-heavy: proxies, colas, llamadas a DynamoDB/S3 donde tasks estan mayormente en `await` | ~6% |
+
+Menos concurrencia = menos tasks compitiendo por CPU = menor latencia por request, pero se necesitan mas instancias para la misma concurrencia total. Mas concurrencia = mejor throughput agregado para workloads IO-bound, pero cada task individual tarda mas si necesita CPU.
 
 ## Multi-tenancy y seguridad
 

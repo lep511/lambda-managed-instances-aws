@@ -140,18 +140,31 @@ deploy_function() {
         --query "Configuration.State" \
         --output text 2>/dev/null || echo "NOT_FOUND")
 
+    local mem_size="${MEMORY_SIZE:-2048}"
+    local mem_ratio="${MEM_VCPU_RATIO:-2.0}"
+    local fn_arch="${ARCHITECTURE:-arm64}"
+    local fn_timeout="${TIMEOUT:-120}"
+
+    local cp_config="LambdaManagedInstancesCapacityProviderConfig={CapacityProviderArn=$CP_ARN,ExecutionEnvironmentMemoryGiBPerVCpu=$mem_ratio"
+    if [[ -n "${MAX_CONCURRENCY:-}" ]]; then
+        cp_config="${cp_config},PerExecutionEnvironmentMaxConcurrency=${MAX_CONCURRENCY}"
+    fi
+    cp_config="${cp_config}}"
+
+    info "Configuración: ${mem_size} MB, ratio ${mem_ratio}:1, ${fn_arch}, timeout ${fn_timeout}s, concurrency ${MAX_CONCURRENCY:-8 (default)}/vCPU"
+
     if [[ "$existing_state" == "NOT_FOUND" ]]; then
         info "Creando función Lambda '$FUNCTION_NAME'..."
         aws lambda create-function \
             --function-name "$FUNCTION_NAME" \
             --runtime provided.al2023 \
             --handler rust.handler \
-            --architectures arm64 \
+            --architectures "$fn_arch" \
             --zip-file "fileb://$zip_path" \
             --role "$EXECUTION_ROLE_ARN" \
-            --memory-size 2048 \
-            --timeout 120 \
-            --capacity-provider-config "LambdaManagedInstancesCapacityProviderConfig={CapacityProviderArn=$CP_ARN,ExecutionEnvironmentMemoryGiBPerVCpu=2.0}" \
+            --memory-size "$mem_size" \
+            --timeout "$fn_timeout" \
+            --capacity-provider-config "$cp_config" \
             --output json
         echo ""
         ok "Función creada"
@@ -298,7 +311,7 @@ save_version() {
 # ==========================================================
 echo ""
 printf "${CYAN}╔══════════════════════════════════════════════════╗${NC}\n"
-printf "${CYAN}║  LMI Workshop — Deploy Rust Function (Graviton) ║${NC}\n"
+printf "${CYAN}║  LMI Workshop — Deploy Rust Function (Graviton)  ║${NC}\n"
 printf "${CYAN}╚══════════════════════════════════════════════════╝${NC}\n"
 echo ""
 

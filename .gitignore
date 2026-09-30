@@ -4,6 +4,7 @@
 !.env.example
 *.pem
 *.key
+.temp/
 
 # Rust
 target/
@@ -32,3 +33,7 @@ dist/
 
 # Logs
 *.log
+
+# Pricing calculator
+pricing-calculator/node_modules/
+pricing-calculator/dist/

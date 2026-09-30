@@ -130,17 +130,26 @@ validate_formats() {
     ok "Todos los formatos de ID son válidos"
 }
 
-# --- Save variables to .env ---
+# --- Save variables to .env (preserves existing keys) ---
 save_env() {
-    cat > "$ENV_FILE" <<EOF
-VPC_ID=${VPC_ID}
-SUBNET_IDS=${SUBNET_IDS}
-SECURITY_GROUP_ID=${SECURITY_GROUP_ID}
-OPERATOR_ROLE_ARN=${OPERATOR_ROLE_ARN}
-EXECUTION_ROLE_ARN=${EXECUTION_ROLE_ARN}
-EOF
+    local keys=(VPC_ID SUBNET_IDS SECURITY_GROUP_ID OPERATOR_ROLE_ARN EXECUTION_ROLE_ARN)
+
+    if [[ ! -f "$ENV_FILE" ]]; then
+        touch "$ENV_FILE"
+        chmod 600 "$ENV_FILE"
+    fi
+
+    for key in "${keys[@]}"; do
+        local value="${!key}"
+        if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+            sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+        else
+            echo "${key}=${value}" >> "$ENV_FILE"
+        fi
+    done
+
     chmod 600 "$ENV_FILE"
-    ok "Variables guardadas en $ENV_FILE"
+    ok "Variables guardadas en $ENV_FILE (sin sobreescribir las demás)"
 }
 
 # --- Discover values from the account (best-effort) ---
@@ -282,8 +291,11 @@ export_cp_arn() {
         --query "CapacityProvider.CapacityProviderArn" \
         --output text)
 
-    echo "" >> "$ENV_FILE"
-    echo "CP_ARN=${cp_arn}" >> "$ENV_FILE"
+    if grep -q "^CP_ARN=" "$ENV_FILE" 2>/dev/null; then
+        sed -i "s|^CP_ARN=.*|CP_ARN=${cp_arn}|" "$ENV_FILE"
+    else
+        echo "CP_ARN=${cp_arn}" >> "$ENV_FILE"
+    fi
 
     ok "CP_ARN exportado: $cp_arn"
     echo ""
@@ -296,7 +308,7 @@ export_cp_arn() {
 # ==========================================================
 echo ""
 printf "${CYAN}╔══════════════════════════════════════════════════╗${NC}\n"
-printf "${CYAN}║  LMI Workshop — Setup Capacity Provider (Rust)  ║${NC}\n"
+printf "${CYAN}║  LMI Workshop — Setup Capacity Provider (Rust)   ║${NC}\n"
 printf "${CYAN}╚══════════════════════════════════════════════════╝${NC}\n"
 echo ""
 
